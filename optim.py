@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import casadi as ca
-import coefficients as coeff
+from profiles import Profil
 
 R = 0.06 # Rayon max hélice (m)
 r0 = 0.006 # Début hélice (m)
@@ -14,15 +14,16 @@ omeg_min = 500
 
 class Helice :
 
-    def __init__(self, R, r0, Cp, Ct, N_pale, N, nom) :
+    def __init__(self, R, r0, N_pale, N, profil, nom) :
+        self.profil = Profil(profil)
         self.R = R
         self.r0 = r0
         self.dr = (R-r0)/N
         self.r = r0 + np.cumsum(np.r_[0.0, np.full(N, self.dr)])    # Renvoie les coordonnées délimitant les sections de pale.
         self.r1 = self.r[:-1] + self.dr/2   # Renvoie les coordonnées du milieu de chaque section de pale.
         self.N = N
-        self.Cp = Cp
-        self.Ct = Ct
+        self.Cp = self.profil.Cp
+        self.Ct = self.profil.Ct
         self.N_pale = N_pale
         self.nom = nom
 
@@ -120,7 +121,7 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
 
     return solution
 
-h_V1 = Helice(R, r0, coeff.Cp_ag11, coeff.Ct_ag11, 4, 27, "h_V1")
+h_V1 = Helice(R, r0, 4, 27, "clarky","h_V1")
 
 hélice_optim(h_V1)
 
