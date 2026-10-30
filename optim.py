@@ -30,7 +30,7 @@ class Helice :
         return self.nom
 
 def Reynolds(helice, x) :          # Renvoie le tableau du nombre de Reynolds de chaque section de la pale, permettra de faire varier Ct avec r.
-    return (rho * x[helice.N:2*helice.N] * ca.sqrt(helice.r1**2*(x[-1]*1000)**2 + x[2*helice.N:-1]**2))/nu
+    return (x[helice.N:2*helice.N] * ca.sqrt(helice.r1**2*(x[-1]*1000)**2 + x[2*helice.N:-1]**2))/nu
 
 def alpha(helice, x) :                  # Renvoie l'angle alpha (pareil que dans le TD)
     return ca.atan(x[2*helice.N:-1]/(helice.r1*x[-1]*1000))
@@ -81,7 +81,7 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
         lbx = np.r_[np.full(helice.N, 0.0), np.full(helice.N, 0.002), np.full(helice.N, 0.01), omeg_min/1000],          # On minimise l'angle de callage par 0° (pour ne pas qu'il cherche des trucs absurdes) et la corde à 2 mm (pour éviter Re = 0 => 0 frottements mais toujours portance...)
         ubx = np.r_[np.full(helice.N, np.inf), np.full(helice.N, 0.015), np.full(helice.N, np.inf), omeg_max/1000],          # On maximise l'angle de callage par l'infini et la corde par 1.5 cm (ouais c'est un peu au pif pour tester là)
         lbg = np.r_[0.0, np.full(helice.N, 0.0), np.full(helice.N, 0.0), np.full(helice.N, 5000)],      # Condition d'égalité de force à gauche puis on ne veut pas une incidence négative (pour ne pas qu'il cherche des solutions chelous)      
-        ubg = np.r_[0.0, np.full(helice.N, 16*np.pi/180), np.full(helice.N, 0.0), np.full(helice.N, 100000)])      # Condition d'égalité de la force puis on maximise l'incidence par le décollement constaté (10° dans le TD) et on maximise le reynolds par l'infini
+        ubg = np.r_[0.0, np.full(helice.N, 15.8*np.pi/180), np.full(helice.N, 0.0), np.full(helice.N, 100000)])      # Condition d'égalité de la force puis on maximise l'incidence par le décollement constaté (10° dans le TD) et on maximise le reynolds par l'infini
 
     print(solver.stats()["return_status"])      # Statut pour voir s'il a bien convergé
 
@@ -120,7 +120,7 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
 
     return solution
 
-h_V1 = Helice(R, r0, coeff.Cp_clarky, coeff.Ct_clarky, 3, 27, "h_V1")
+h_V1 = Helice(R, r0, coeff.Cp_ag11, coeff.Ct_ag11, 4, 27, "h_V1")
 
 hélice_optim(h_V1)
 
