@@ -11,6 +11,7 @@ m = 1.2 # Masse du drone (choisi d'après le TD)
 g_ = 9.81
 omeg_max = 2000 # rad/s
 omeg_min = 500
+varcorde_max = 0.005
 
 class Helice :
 
@@ -61,13 +62,18 @@ def force_cond(helice, x) :          # La somme des forces moins la valeur que l
     dF = force_diff(helice, x)
     return ca.sum1(dF) - (m*g_)/(4*helice.N_pale)
 
+def corde_cond(helice, x) :
+    return x[helice.N+1 : 2*helice.N] - x[helice.N : 2*helice.N-1]
+
 def get_problem(helice) :        # Définie le problème pour casadi
 
     x = ca.SX.sym("x", 3*helice.N+1)               # Définie la variable (les N angles de callage puis les N valeurs de la corde puis les N valeurs de vitesse induite et puis omega)
 
+    lam = 100
+
     return {"x" : x,                        # Variable du problème d'optimisation
-            "f" : puissance(helice, x),          # Fonction que l'on veut minimiser
-            "g" : ca.vertcat(force_cond(helice, x), incidence(helice, x), helice.N_pale*force_diff(helice, x) - 2*rho*(2*np.pi*helice.r[:-1]*helice.dr+ np.pi*helice.dr**2)*facteur_perte_Prandt(helice, x)*x[2*helice.N:-1]**2, Reynolds(helice, x))}        # Les conditions (fonctions que l'on veut borner)
+            "f" : puissance(helice, x) + lam * (ca.sumsqr(ca.diff(x[:helice.N], 2)) + 270 * ca.sumsqr(ca.diff(x[helice.N:2*helice.N], 2))),          # Fonction que l'on veut minimiser
+            "g" : ca.vertcat(force_cond(helice, x), incidence(helice, x), helice.N_pale*force_diff(helice, x) - 2*rho*(2*np.pi*helice.r[:-1]*helice.dr+ np.pi*helice.dr**2)*facteur_perte_Prandt(helice, x)*x[2*helice.N:-1]**2, Reynolds(helice, x), corde_cond(helice, x))}        # Les conditions (fonctions que l'on veut borner)
 
 def hélice_optim(helice) :        # Résoud le problème défini au dessus en définissant le solver et les contraintes
 
@@ -78,11 +84,11 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
     solver = ca.nlpsol('nlp', 'ipopt', pb, opts)          # On choisit ipopt
 
     solution = solver(
-        x0 = np.r_[np.arctan(8/(helice.r1*1000)) + 5*np.pi/180, np.full(helice.N, 0.01), np.full(helice.N, 8), 1],     # On initialise l'angle de callage tel que l'angle d'incidence est de 5° partout et la corde à 1cm partout
+        x0 = np.r_[np.arctan(8/(helice.r1*1000)) + 1*np.pi/180, 0.0045, np.full(helice.N-1, 0.01), np.full(helice.N, 8), 1],     # On initialise l'angle de callage tel que l'angle d'incidence est de 5° partout et la corde à 1cm partout
         lbx = np.r_[np.full(helice.N, 0.0), np.full(helice.N, 0.002), np.full(helice.N, 0.01), omeg_min/1000],          # On minimise l'angle de callage par 0° (pour ne pas qu'il cherche des trucs absurdes) et la corde à 2 mm (pour éviter Re = 0 => 0 frottements mais toujours portance...)
-        ubx = np.r_[np.full(helice.N, np.inf), np.full(helice.N, 0.015), np.full(helice.N, np.inf), omeg_max/1000],          # On maximise l'angle de callage par l'infini et la corde par 1.5 cm (ouais c'est un peu au pif pour tester là)
-        lbg = np.r_[0.0, np.full(helice.N, 0.0), np.full(helice.N, 0.0), np.full(helice.N, 5000)],      # Condition d'égalité de force à gauche puis on ne veut pas une incidence négative (pour ne pas qu'il cherche des solutions chelous)      
-        ubg = np.r_[0.0, np.full(helice.N, 15.8*np.pi/180), np.full(helice.N, 0.0), np.full(helice.N, 100000)])      # Condition d'égalité de la force puis on maximise l'incidence par le décollement constaté (10° dans le TD) et on maximise le reynolds par l'infini
+        ubx = np.r_[np.full(helice.N, np.inf), 0.006, np.full(helice.N-1, 0.015), np.full(helice.N, np.inf), omeg_max/1000],          # On maximise l'angle de callage par l'infini et la corde par 1.5 cm (ouais c'est un peu au pif pour tester là)
+        lbg = np.r_[0.0, np.full(helice.N, 0.0), np.full(helice.N, 0.0), np.full(helice.N, 300), np.full(helice.N-1, -np.inf)],      # Condition d'égalité de force à gauche puis on ne veut pas une incidence négative (pour ne pas qu'il cherche des solutions chelous)      
+        ubg = np.r_[0.0, np.full(helice.N, 8.9*np.pi/180), np.full(helice.N, 0.0), np.full(helice.N, 100000), np.full(helice.N-1, np.inf)])      # Condition d'égalité de la force puis on maximise l'incidence par le décollement constaté (10° dans le TD) et on maximise le reynolds par l'infini
 
     print(solver.stats()["return_status"])      # Statut pour voir s'il a bien convergé
 
@@ -112,7 +118,7 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
     ax[0, 1].set_xlabel("Rayon (en m)")
     ax[1, 0].set_ylabel("Vitesse induite (en m/s)")
     ax[1, 0].set_xlabel("Rayon (en m)")
-    ax[1, 1].set_ylabel("Force verticale (en N)")
+    ax[1, 1].set_ylabel("Force verticale (en N/m)")
     ax[1, 1].set_xlabel("Rayon (en m)")
 
     fig.suptitle(f"Caractéristiques de l'hélice {helice.nom}")
@@ -121,9 +127,16 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
 
     return solution
 
-h_V1 = Helice(R, r0, 4, 27, "clarky","h_V1")
+h_V1 = Helice(R, r0, 3, 27, "ag11","h_V1")
 
-hélice_optim(h_V1)
+sol = hélice_optim(h_V1)
+
+fig, ax1 = plt.subplots()
+
+ax1.plot(h_V1.r1, (sol["x"][:h_V1.N]-alpha(h_V1, sol["x"]))*180/np.pi)
+ax2 = ax1.twinx()
+
+ax2.plot(h_V1.r1, Reynolds(h_V1, sol["x"]))
 
 plt.show()
 
