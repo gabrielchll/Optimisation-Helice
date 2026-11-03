@@ -30,7 +30,66 @@ colors = [
     "#0bb9da", "#0b8eda", "#0b62da", "#0b37da", "#0b0bda",
 ]
 
+def polaire_Cp(profil) :
+    incidence = np.linspace(0,16,50)
+    for i in range(0,6) :
+        plt.plot(incidence, profil.Cp(incidence, 5000+i*12000), label = f"Re = {5000+12000*i}", color = colors[2*i])
+        plt.xlabel("incidence (en °)")
+        plt.ylabel("Reynolds")
+        plt.legend()
+        plt.grid()
+        plt.title("Evolution du coefficient de portance (Cp) en fonction de l'angle d'incidence pour différents reynolds")
+    plt.show()
+
+def polaire_Ct(profil) :
+    incidence = np.linspace(0,16,50)
+    for i in range(0,6) :
+        plt.plot(incidence, profil.Ct(incidence, 5000+i*12000), label = f"Re = {5000+12000*i}", color = colors[2*i])
+        plt.xlabel("incidence (en °)")
+        plt.ylabel("Reynolds")
+        plt.legend()
+        plt.grid()
+        plt.title("Evolution du coefficient de trainé (Ct) en fonction de l'angle d'incidence pour différents reynolds")
+    plt.show()
+
+ag11 = Profil("ag11")
+clarky = Profil("clarky")
+
+"""def polynome(c, x) :
+    pol = 0
+    for i in range(0, len(c)) :
+        pol = pol + c[i]*x**(len(c) - 1 - i)
+    return pol
+
+def reg_imax(incid_max, reynolds = np.array([5000+i*12000 for i in range(0,6)])) :
+    coeffs = np.polyfit(reynolds, incid_max, 5) 
+    plt.plot(reynolds, incid_max, color = "red")
+    plt.plot(reynolds, polynome(coeffs, reynolds))
+    plt.show()
+
+
+ag11 = Profil("ag11")
+
+get_imax(ag11)
+
+reg_imax(np.array([7.99,8.49,9.14,9.45,9.79,10.11]))"""
+
 if __name__ == "__main__" :
+
+    polaire_Cp(ag11)
+    polaire_Cp(clarky)
+    polaire_Ct(ag11)
+
+    incidence = np.linspace(0,16,50)
+    for i in range(0,6) :
+        plt.plot(incidence, ag11.Cp(incidence, 5000+i*12000), label = f"Re = {5000+12000*i}", color = colors[2*i])
+        plt.plot(incidence, clarky.Cp(incidence, 5000+i*12000), "--", color = colors[2*i])
+        plt.xlabel("incidence (en °)")
+        plt.ylabel("Reynolds")
+        plt.legend()
+        plt.grid()
+        plt.title("Evolution du coefficient de portance (Cp) en fonction de l'angle d'incidence pour différents reynolds")
+    plt.show()
 
     """l = ["ag11", "ag10", "ag09", "ag08", "ag04", "ag03", "sd7003"]
     Re = 20000
@@ -40,10 +99,10 @@ if __name__ == "__main__" :
         plt.plot(np.linspace(0,8, 50), p.Cp(np.linspace(0,8,50), Re)/p.Ct(np.linspace(0,8,50), Re), color=colors[t])
     plt.show()"""
 
-    p = Profil("ag11")
+    """p = Profil("ag11")
     a = np.linspace(0,16,200)
     for i in range(1, 12) :
         plt.plot(a, p.Cp(a, 6000*i), color = colors[i], label= f"Re = {6000*i}")
         plt.legend()
     plt.xlabel("incidence (en °)")
-    plt.show()
+    plt.show()"""
