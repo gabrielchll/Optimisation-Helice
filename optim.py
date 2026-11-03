@@ -84,7 +84,7 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
     solver = ca.nlpsol('nlp', 'ipopt', pb, opts)          # On choisit ipopt
 
     solution = solver(
-        x0 = np.r_[np.arctan(8/(helice.r1*1000)) + 1*np.pi/180, 0.0045, np.full(helice.N-1, 0.01), np.full(helice.N, 8), np.full(helice.N, 0), 1],     # On initialise l'angle de callage tel que l'angle d'incidence est de 5° partout et la corde à 1cm partout
+        x0 = np.r_[np.arctan(8/(helice.r1*1000)) + 1*np.pi/180, 0.0045, np.full(helice.N-1, 0.01), np.full(helice.N, 8), np.full(helice.N, 0.02), 1],     # On initialise l'angle de callage tel que l'angle d'incidence est de 5° partout et la corde à 1cm partout
         lbx = np.r_[np.full(helice.N, 0.0), np.full(helice.N, 0.002), np.full(helice.N, 0.01), np.full(helice.N, 0.01), omeg_min/1000],          # On minimise l'angle de callage par 0° (pour ne pas qu'il cherche des trucs absurdes) et la corde à 2 mm (pour éviter Re = 0 => 0 frottements mais toujours portance...)
         ubx = np.r_[np.full(helice.N, np.inf), 0.008, np.full(helice.N-1, 0.015), np.full(2*helice.N, np.inf), omeg_max/1000],          # On maximise l'angle de callage par l'infini et la corde par 1.5 cm (ouais c'est un peu au pif pour tester là)
         lbg = np.r_[0.0, np.full(helice.N, 0.0), np.full(2*helice.N, 0.0), np.full(helice.N, 400)],      # Condition d'égalité de force à gauche puis on ne veut pas une incidence négative (pour ne pas qu'il cherche des solutions chelous)      
