@@ -12,7 +12,7 @@ g_ = 9.81
 omeg_max = 2000 # rad/s  
 omeg_min = 500
 
-class Helice :
+class Helice_squelette :
 
     def __init__(self, R, r0, N_pale, N, profil, nom) :
         self.profil = Profil(profil)
@@ -30,13 +30,20 @@ class Helice :
     def __repr__(self) :
         return self.nom
 
+class Helice(Helice_squelette) :
+
+    def __init__(self, calage, corde, helice_squelette) :
+        self.__dict__.update(helice_squelette.__dict__)     # On reprend les attributs du squelette
+        self.calage = calage
+        self.corde = corde
+
 def Reynolds(helice, x) :          # Renvoie le tableau du nombre de Reynolds de chaque section de la pale, permettra de faire varier Ct avec r.
     v_t = helice.r1*x[-1]*1000-x[3*helice.N:-1]
     return (x[helice.N:2*helice.N] * ca.sqrt(v_t**2 + x[2*helice.N:3*helice.N]**2))/nu
 
 def alpha(helice, x) :                  # Renvoie l'angle alpha (pareil que dans le TD)
     v_t = helice.r1*x[-1]*1000-x[3*helice.N:-1]
-    return ca.atan(x[2*helice.N:3*helice.N]/v_t)
+    return ca.atan(x[2*helice.N:3*helice.N] / ca.fmax(v_t, 1e-5))       # évite la division par 0 qui fait diverger
 
 def incidence(helice, x) :       # Renvoie l'angle d'incidence de la pale fonction de l'angle de callage et de r
     return x[:helice.N] - alpha(helice, x)
@@ -73,7 +80,7 @@ def get_problem(helice) :        # Définie le problème pour casadi
 
     return {"x" : x,                        # Variable du problème d'optimisation
             "f" : puissance(helice, x) + lam * (ca.sumsqr(ca.diff(x[:helice.N], 2)) + 270 * ca.sumsqr(ca.diff(x[helice.N:2*helice.N], 2))),          # Fonction que l'on veut minimiser
-            "g" : ca.vertcat(force_vert(helice, x) - m*g_/4, incidence(helice, x), force_vert_diff(helice, x) - 4*rho*np.pi*helice.r[:-1]*helice.dr*facteur_perte_Prandt(helice, x)*x[2*helice.N:3*helice.N]**2, force_tang_diff(helice, x) - 4*np.pi*rho*x[2*helice.N:3*helice.N]*x[3*helice.N:-1]*helice.r1*facteur_perte_Prandt(helice, x)*helice.dr, Reynolds(helice, x))}        # Les conditions (fonctions que l'on veut borner)
+            "g" : ca.vertcat(force_vert(helice, x) - m*g_/4, incidence(helice, x), force_vert_diff(helice, x) - 4*rho*np.pi*helice.r1*helice.dr*facteur_perte_Prandt(helice, x)*x[2*helice.N:3*helice.N]**2, force_tang_diff(helice, x) - 4*np.pi*rho*x[2*helice.N:3*helice.N]*x[3*helice.N:-1]*helice.r1*facteur_perte_Prandt(helice, x)*helice.dr, Reynolds(helice, x))}        # Les conditions (fonctions que l'on veut borner)
 
 def hélice_optim(helice) :        # Résoud le problème défini au dessus en définissant le solver et les contraintes
 
@@ -135,32 +142,89 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
 
     return solution
 
-def solidité(helice, x) :
-    return x[helice.N:2*helice.N]*helice.N_pale/(2*np.pi*helice.r1)
+def force_puissance_théo(helice):
 
-h_V1 = Helice(R, r0, 4, 27, "sd7043","h_V1")
+    Re_min = 3000
+    
+    O = np.linspace(Re_min*nu/(helice.corde[0]*helice.r0), 2000, 100)
 
-sol = hélice_optim(h_V1)
+    z = ca.SX.sym("z", 2*helice.N)
+    p = ca.SX.sym("p")
+    
+    x = ca.vertcat(helice.calage, helice.corde, z, p)
 
-plt.plot(h_V1.r1, incidence(h_V1, sol["x"])*180/np.pi)
-plt.show()
+    eqs1 = force_vert_diff(helice, x) - 4*rho*np.pi*helice.r1*helice.dr*facteur_perte_Prandt(helice, x)*x[2*helice.N:3*helice.N]**2
+    eqs2 = force_tang_diff(helice, x) - 4*np.pi*rho*x[2*helice.N:3*helice.N]*x[3*helice.N:-1]*helice.r1*facteur_perte_Prandt(helice, x)*helice.dr
+    
+    g = ca.vertcat(eqs1, eqs2)
 
-"""
-def Rés_théo(helice) :
-    sol = hélice_optim(helice)
-    hel = sol["x"]
-    omeg = np.linspace(0, 2000, 200)
-    Force = []
-    Puissance = []
-    for i in range(0, len(omeg)) :
-        Force.append(force_vert(helice, np.append(hel[:-1], omeg[i]/1000)))
-        Puissance.append(puissance(helice, np.append(hel[:-1], omeg[i]/1000)))
-    fig, ax = plt.subplots(2)
-    ax[0].plot(omeg, np.array(Force).flatten())
-    ax[1].plot(np.array(Puissance).flatten(), np.array(Force).flatten())
+    nlp = {"x": z, "p": p, "f": 0, "g": g}
+
+    solver = ca.nlpsol("solver", "ipopt", nlp)
+    
+    F = []
+    P = []
+    sols = []
+    
+    z0 = np.r_[helice.r1*O[0]*np.tan(helice.calage-5*np.pi/180), np.full(helice.N, 0.5)]
+
+    for omeg in O:
+
+        res = solver(x0=z0, p=omeg/1000, lbg=0, ubg=0, lbx=1e-5)
+        
+        if solver.stats()["success"] == False :
+            print(f"IPOPT a abandonné à omeg = {omeg:.2f} rad/s")
+            break
+            
+        z0 = res["x"].full().ravel()
+        sols.append(z0)
+
+        F.append(float(force_vert(helice, ca.vertcat(helice.calage, helice.corde, z0, omeg/1000))))
+        P.append(float(puissance(helice, ca.vertcat(helice.calage, helice.corde, z0, omeg/1000))))
+
+    sols = np.array(sols)
+
+    fig, ax = plt.subplots(2, 3)
+    ax[0, 0].plot(O*60/(2*np.pi), F)
+    ax[0, 1].plot(P, F)
+    ax[1, 0].plot(O*60/(2*np.pi), P)
+    for i in range(0, 7) :
+        ax[1, 1].plot(helice.r1, 180/np.pi*incidence(helice, ca.vertcat(helice.calage, helice.corde, sols[16*i], O[16*i]/1000)), label=f"{O[16*i]*60/(2*np.pi):.0f} tr/min")
+        ax[0, 2].plot(helice.r1, sols[16*i][:helice.N], label=f"{O[16*i]*60/(2*np.pi):.0f} tr/min")
+        ax[1, 2].plot(helice.r1, sols[16*i][helice.N:2*helice.N], label=f"{O[16*i]*60/(2*np.pi):.0f} tr/min")
+
+    ax[0, 0].set_title("Poussée en fonction de la vitesse de rotation")
+    ax[0, 1].set_title("Poussée en fonction de la puissance mécanique")
+    ax[1, 0].set_title("Puissance mécanique en fonction de la vitesse de rotation")
+    ax[1, 1].set_title("Incidence en fonction du rayon")
+    ax[0, 2].set_title("Vitesse induite verticale en fonction du rayon")
+    ax[1, 2].set_title("Vitesse induite tangentielle en fonction du rayon")
+
+    ax[0, 0].set_xlabel("Vitesse de rotation (tr/min)")
+    ax[0, 0].set_ylabel("Poussée (N)")
+    ax[0, 1].set_xlabel("Puissance mécanique fournie (W)")
+    ax[0, 1].set_ylabel("Poussée (N)")
+    ax[1, 0].set_xlabel("Vitesse de rotation (tour/min)")
+    ax[1, 0].set_ylabel("Puissance mécanique fournie (W)")
+    ax[1, 1].set_xlabel("Rayon (m)")
+    ax[1, 1].set_ylabel("Angle d'incidence (°)")
+    ax[0, 2].set_xlabel("Rayon (m)")
+    ax[0, 2].set_ylabel("Vitesse induite verticale (m/s)")
+    ax[1, 2].set_xlabel("Rayon (m)")
+    ax[1, 2].set_ylabel("Vitesse induite tangentielle (m/s)")
+
+    plt.legend()
     plt.show()
 
-Rés_théo(h_V1)"""
+    return F
+
+if __name__ == "__main__" :
+
+    gabizarre = Helice_squelette(R, r0, 3, 27, "clarky","gabizarre")
+    h_V1 = Helice(np.pi/180*np.array( [39.3307, 37.5131, 35.8262, 34.4722, 33.3607, 29.9771, 23.774, 18.9439, 19.3118, 19.2442, 19.3875, 19.9394, 20.8381, 21.6244, 21.3809, 20.5254, 19.5879, 18.6397, 17.6985, 16.7753, 15.8647, 15.2519, 14.7514, 14.0816, 11.0324, 9.34691, 9.29033]), np.array([1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.43596, 1.34892, 1.27696, 1.5, 1.5, 0.79401])/100, gabizarre)
+    force_puissance_théo(h_V1)
+
+
 
 
 

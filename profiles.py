@@ -55,25 +55,6 @@ def polaire_Ct(profil) :
 ag11 = Profil("ag11")
 clarky = Profil("clarky")
 
-"""def polynome(c, x) :
-    pol = 0
-    for i in range(0, len(c)) :
-        pol = pol + c[i]*x**(len(c) - 1 - i)
-    return pol
-
-def reg_imax(incid_max, reynolds = np.array([5000+i*12000 for i in range(0,6)])) :
-    coeffs = np.polyfit(reynolds, incid_max, 5) 
-    plt.plot(reynolds, incid_max, color = "red")
-    plt.plot(reynolds, polynome(coeffs, reynolds))
-    plt.show()
-
-
-ag11 = Profil("ag11")
-
-get_imax(ag11)
-
-reg_imax(np.array([7.99,8.49,9.14,9.45,9.79,10.11]))"""
-
 if __name__ == "__main__" :
 
     polaire_Cp(ag11)
