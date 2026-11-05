@@ -30,47 +30,48 @@ colors = [
     "#0bb9da", "#0b8eda", "#0b62da", "#0b37da", "#0b0bda",
 ]
 
-def polaire_Cp(profil) :
+def courbe_Cp(profil, ax, n = 7) :
     incidence = np.linspace(0,16,50)
-    for i in range(0,6) :
-        plt.plot(incidence, profil.Cp(incidence, 5000+i*12000), label = f"Re = {5000+12000*i}", color = colors[2*i])
-        plt.xlabel("incidence (en °)")
-        plt.ylabel("Reynolds")
-        plt.legend()
-        plt.grid()
-        plt.title("Evolution du coefficient de portance (Cp) en fonction de l'angle d'incidence pour différents reynolds")
-    plt.show()
+    for i in range(0,n) :
+        ax.plot(incidence, profil.Cp(incidence, 5000+i*int(70000/n)), label = f"Re = {5000+int(70000/n)*i}", color = colors[i])
+        ax.set_xlabel("incidence (en °)")
+        ax.set_ylabel("Cp")
+        ax.set_title("Evolution du coefficient de portance (Cp) en fonction de l'angle d'incidence pour différents reynolds")
+    ax.legend()
+    ax.grid()
 
-def polaire_Ct(profil) :
+def courbe_Ct(profil, ax, n = 7) :
     incidence = np.linspace(0,16,50)
-    for i in range(0,6) :
-        plt.plot(incidence, profil.Ct(incidence, 5000+i*12000), label = f"Re = {5000+12000*i}", color = colors[2*i])
-        plt.xlabel("incidence (en °)")
-        plt.ylabel("Reynolds")
-        plt.legend()
-        plt.grid()
-        plt.title("Evolution du coefficient de trainé (Ct) en fonction de l'angle d'incidence pour différents reynolds")
-    plt.show()
-
-ag11 = Profil("ag11")
-clarky = Profil("clarky")
+    for i in range(0,n) :
+        ax.plot(incidence, profil.Ct(incidence, 5000+i*int(70000/n)), label = f"Re = {5000+int(70000/n)*i}", color = colors[i])
+        ax.set_xlabel("incidence (en °)")
+        ax.set_ylabel("Ct")
+        ax.set_title("Evolution du coefficient de trainé (Ct) en fonction de l'angle d'incidence pour différents reynolds")
+    ax.legend()
+    ax.grid()
 
 if __name__ == "__main__" :
 
-    polaire_Cp(ag11)
-    polaire_Cp(clarky)
-    polaire_Ct(ag11)
+    ag11 = Profil("ag11")
+    clarky = Profil("clarky")
+    sd7043 = Profil("sd7043")
 
-    incidence = np.linspace(0,16,50)
-    for i in range(0,6) :
-        plt.plot(incidence, ag11.Cp(incidence, 5000+i*12000), label = f"Re = {5000+12000*i}", color = colors[2*i])
-        plt.plot(incidence, clarky.Cp(incidence, 5000+i*12000), "--", color = colors[2*i])
-        plt.xlabel("incidence (en °)")
-        plt.ylabel("Reynolds")
-        plt.legend()
-        plt.grid()
-        plt.title("Evolution du coefficient de portance (Cp) en fonction de l'angle d'incidence pour différents reynolds")
+    fig, ax = plt.subplots(1, 2)
+
+    courbe_Cp(ag11, ax[0], 10)
+    courbe_Cp(clarky, ax[1], 10)
     plt.show()
+
+
+
+    
+
+    """fig, ax = plt.subplots()
+
+    db = pd.read_csv("CoeffsProfils.csv", sep=";", decimal=",")
+    ax.plot(db[db["profil"] == "SD7043"]["alpha_deg"], db[db["profil"] == "SD7043"]["Cz_moy"])
+    ax.plot(np.linspace(0, 16, 10), sd7043.Cp(np.linspace(0, 16, 10), 49000))
+    plt.show()"""
 
     """l = ["ag11", "ag10", "ag09", "ag08", "ag04", "ag03", "sd7003"]
     Re = 20000

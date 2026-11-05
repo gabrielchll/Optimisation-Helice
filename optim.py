@@ -2,19 +2,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 import casadi as ca
 from profiles import Profil
+import pandas as pd
 
 R = 0.06 # Rayon max hélice (m)
 r0 = 0.006 # Début hélice (m)
 rho = 1.2 # Masse volumique de l'air (kg/m**3)
 nu = 1.5e-5 # Viscosité de l'air
-m = 1.2 # Masse du drone
+m = 1.8 # Masse du drone
 g_ = 9.81
-omeg_max = 2000 # rad/s  
+omeg_max = 1500 # rad/s  
 omeg_min = 500
 
 class Helice_squelette :
 
-    def __init__(self, R, r0, N_pale, N, profil, nom) :
+    def __init__(self, R, r0, N_pale, N, profil) :
         self.profil = Profil(profil)
         self.R = R
         self.r0 = r0
@@ -25,17 +26,14 @@ class Helice_squelette :
         self.Cp = self.profil.Cp
         self.Ct = self.profil.Ct
         self.N_pale = N_pale
-        self.nom = nom
-
-    def __repr__(self) :
-        return self.nom
 
 class Helice(Helice_squelette) :
 
-    def __init__(self, calage, corde, helice_squelette) :
+    def __init__(self, calage, corde, helice_squelette, nom) :
         self.__dict__.update(helice_squelette.__dict__)     # On reprend les attributs du squelette
         self.calage = calage
         self.corde = corde
+        self.nom = nom
 
 def Reynolds(helice, x) :          # Renvoie le tableau du nombre de Reynolds de chaque section de la pale, permettra de faire varier Ct avec r.
     v_t = helice.r1*x[-1]*1000-x[3*helice.N:-1]
@@ -82,7 +80,7 @@ def get_problem(helice) :        # Définie le problème pour casadi
             "f" : puissance(helice, x) + lam * (ca.sumsqr(ca.diff(x[:helice.N], 2)) + 270 * ca.sumsqr(ca.diff(x[helice.N:2*helice.N], 2))),          # Fonction que l'on veut minimiser
             "g" : ca.vertcat(force_vert(helice, x) - m*g_/4, incidence(helice, x), force_vert_diff(helice, x) - 4*rho*np.pi*helice.r1*helice.dr*facteur_perte_Prandt(helice, x)*x[2*helice.N:3*helice.N]**2, force_tang_diff(helice, x) - 4*np.pi*rho*x[2*helice.N:3*helice.N]*x[3*helice.N:-1]*helice.r1*facteur_perte_Prandt(helice, x)*helice.dr, Reynolds(helice, x))}        # Les conditions (fonctions que l'on veut borner)
 
-def hélice_optim(helice) :        # Résoud le problème défini au dessus en définissant le solver et les contraintes
+def hélice_optim(helice, courbes = True) :        # Résoud le problème défini au dessus en définissant le solver et les contraintes
 
     pb = get_problem(helice)     # Renvoie le dico qui définie le pb
 
@@ -95,7 +93,7 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
         lbx = np.r_[np.full(helice.N, 0.0), np.full(helice.N, 0.002), np.full(helice.N, 0.01), np.full(helice.N, 0.01), omeg_min/1000],          # On minimise l'angle de callage par 0° (pour ne pas qu'il cherche des trucs absurdes) et la corde à 2 mm (pour éviter Re = 0 => 0 frottements mais toujours portance...)
         ubx = np.r_[np.full(helice.N, np.inf), 0.008, np.full(helice.N-1, 0.015), np.full(2*helice.N, np.inf), omeg_max/1000],          # On maximise l'angle de callage par l'infini et la corde par 1.5 cm (ouais c'est un peu au pif pour tester là)
         lbg = np.r_[0.0, np.full(helice.N, 0.0), np.full(2*helice.N, 0.0), np.full(helice.N, 400)],      # Condition d'égalité de force à gauche puis on ne veut pas une incidence négative (pour ne pas qu'il cherche des solutions chelous)      
-        ubg = np.r_[0.0, np.full(helice.N, 8.9*np.pi/180), np.full(2*helice.N, 0.0), np.full(helice.N, 100000)])      # Condition d'égalité de la force puis on maximise l'incidence par le décollement constaté (10° dans le TD) et on maximise le reynolds par l'infini
+        ubg = np.r_[0.0, np.full(helice.N, 12.2*np.pi/180), np.full(2*helice.N, 0.0), np.full(helice.N, 100000)])      # Condition d'égalité de la force puis on maximise l'incidence par le décollement constaté (10° dans le TD) et on maximise le reynolds par l'infini
 
     print(solver.stats()["return_status"])      # Statut pour voir s'il a bien convergé
 
@@ -107,46 +105,50 @@ def hélice_optim(helice) :        # Résoud le problème défini au dessus en d
     print(f"Callage (en °) : {X[:helice.N]*180/np.pi}")
     print(f"Corde (en cm): {X[helice.N:2*helice.N]*100}")
 
-    fig, ax = plt.subplots(2, 3)
+    if courbes : 
 
-    ax[0, 0].plot(helice.r1, X[:helice.N]*180/np.pi)        # Trace l'angle de calage en fonction
-    ax[0, 1].plot(helice.r1, X[helice.N:2*helice.N]*100)        # Trace la corde en fonction de r
-    ax[1, 0].plot(helice.r1, X[2*helice.N:3*helice.N])         # Trace la vitesse induite en fonction de r
-    ax[1, 1].plot(helice.r1, force_vert_diff(helice, X))      # Trace la force verticale en fonction de r 
-    ax[0, 2].plot(helice.r1, X[3*helice.N:-1])
-    ax[1,2].plot(helice.r1, Reynolds(helice, X))
+        fig, ax = plt.subplots(2, 3)
 
-    ax[0, 0].set_title("Angle de calage en fonction du rayon de la section")
-    ax[0, 1].set_title("Corde en fonction du rayon de la section")
-    ax[1, 0].set_title("Vitesse induite verticale en fonction du rayon de la section")
-    ax[1, 1].set_title("Répartition de la force verticale sur une pale")
-    ax[0, 2].set_title("Vitesse induite tangentielle en fonction du rayon de la section")
-    ax[1, 2].set_title("Reynolds de la section en fonction du rayon")
+        ax[0, 0].plot(helice.r1, X[:helice.N]*180/np.pi)        # Trace l'angle de calage en fonction
+        ax[0, 1].plot(helice.r1, X[helice.N:2*helice.N]*100)        # Trace la corde en fonction de r
+        ax[1, 0].plot(helice.r1, X[2*helice.N:3*helice.N])         # Trace la vitesse induite en fonction de r
+        ax[1, 1].plot(helice.r1, force_vert_diff(helice, X))      # Trace la force verticale en fonction de r 
+        ax[0, 2].plot(helice.r1, X[3*helice.N:-1])
+        ax[1,2].plot(helice.r1, (X[:helice.N]-alpha(helice, X))*180/np.pi)
 
-    ax[0, 0].set_ylabel("Angle de calage (en °)")
-    ax[0, 0].set_xlabel("Rayon (en m)")
-    ax[0, 1].set_ylabel("Corde (en cm)")
-    ax[0, 1].set_xlabel("Rayon (en m)")
-    ax[1, 0].set_ylabel("Vitesse induite verticale (en m/s)")
-    ax[1, 0].set_xlabel("Rayon (en m)")
-    ax[1, 1].set_ylabel("Force verticale (en N/m)")
-    ax[1, 1].set_xlabel("Rayon (en m)")
-    ax[0, 2].set_ylabel("Vitesse induite tangentielle (en m/s)")
-    ax[0, 2].set_xlabel("Rayon (en m)")
-    ax[1, 2].set_ylabel("Reynolds")
-    ax[1, 2].set_xlabel("Rayon (en m)")
+        ax[0, 0].set_title("Angle de calage en fonction du rayon de la section")
+        ax[0, 1].set_title("Corde en fonction du rayon de la section")
+        ax[1, 0].set_title("Vitesse induite verticale en fonction du rayon de la section")
+        ax[1, 1].set_title("Répartition de la force verticale sur une pale")
+        ax[0, 2].set_title("Vitesse induite tangentielle en fonction du rayon de la section")
+        ax[1, 2].set_title("Reynolds de la section en fonction du rayon")
 
-    fig.suptitle(f"Caractéristiques de l'hélice {helice.nom}")
+        ax[0, 0].set_ylabel("Angle de calage (en °)")
+        ax[0, 0].set_xlabel("Rayon (en m)")
+        ax[0, 1].set_ylabel("Corde (en cm)")
+        ax[0, 1].set_xlabel("Rayon (en m)")
+        ax[1, 0].set_ylabel("Vitesse induite verticale (en m/s)")
+        ax[1, 0].set_xlabel("Rayon (en m)")
+        ax[1, 1].set_ylabel("Force verticale (en N/m)")
+        ax[1, 1].set_xlabel("Rayon (en m)")
+        ax[0, 2].set_ylabel("Vitesse induite tangentielle (en m/s)")
+        ax[0, 2].set_xlabel("Rayon (en m)")
+        ax[1, 2].set_ylabel("Reynolds")
+        ax[1, 2].set_xlabel("Rayon (en m)")
 
-    plt.show()
+        fig.suptitle(f"Caractéristiques de l'hélice")
+
+        plt.show()
 
     return solution
 
-def force_puissance_théo(helice):
+def performances_théo_expé(helice, omeg = None, expé=False, courbes = False):
 
-    Re_min = 3000
-    
-    O = np.linspace(Re_min*nu/(helice.corde[0]*helice.r0), 2000, 100)
+    if omeg == None :
+        Re_min = 2000
+        O = np.linspace(Re_min*nu/(helice.corde[0]*helice.r0), 2000, 100)
+    else :
+        O = omeg
 
     z = ca.SX.sym("z", 2*helice.N)
     p = ca.SX.sym("p")
@@ -172,7 +174,7 @@ def force_puissance_théo(helice):
 
         res = solver(x0=z0, p=omeg/1000, lbg=0, ubg=0, lbx=1e-5)
         
-        if solver.stats()["success"] == False :
+        if not solver.stats()["success"] :
             print(f"IPOPT a abandonné à omeg = {omeg:.2f} rad/s")
             break
             
@@ -184,45 +186,80 @@ def force_puissance_théo(helice):
 
     sols = np.array(sols)
 
-    fig, ax = plt.subplots(2, 3)
-    ax[0, 0].plot(O*60/(2*np.pi), F)
-    ax[0, 1].plot(P, F)
-    ax[1, 0].plot(O*60/(2*np.pi), P)
-    for i in range(0, 7) :
-        ax[1, 1].plot(helice.r1, 180/np.pi*incidence(helice, ca.vertcat(helice.calage, helice.corde, sols[16*i], O[16*i]/1000)), label=f"{O[16*i]*60/(2*np.pi):.0f} tr/min")
-        ax[0, 2].plot(helice.r1, sols[16*i][:helice.N], label=f"{O[16*i]*60/(2*np.pi):.0f} tr/min")
-        ax[1, 2].plot(helice.r1, sols[16*i][helice.N:2*helice.N], label=f"{O[16*i]*60/(2*np.pi):.0f} tr/min")
+    N = len(sols)
+    if courbes :
+        fig, ax = plt.subplots(3, 3)
 
-    ax[0, 0].set_title("Poussée en fonction de la vitesse de rotation")
-    ax[0, 1].set_title("Poussée en fonction de la puissance mécanique")
-    ax[1, 0].set_title("Puissance mécanique en fonction de la vitesse de rotation")
-    ax[1, 1].set_title("Incidence en fonction du rayon")
-    ax[0, 2].set_title("Vitesse induite verticale en fonction du rayon")
-    ax[1, 2].set_title("Vitesse induite tangentielle en fonction du rayon")
+        ax[0, 0].plot(O[:N]*60/(2*np.pi), F, color = "red")
+        ax[0, 1].plot(P, F, color = "red")
+        ax[1, 0].plot(O[:N]*60/(2*np.pi), P, color = "red")
+        ax[2, 0].plot(O[:N]*60/(2*np.pi), F/(rho*O[:N]**2*(R*2)**4), color = "red")
+        ax[2, 1].plot(O[:N]*60/(2*np.pi), P/(rho*O[:N]**3*(R*2)**5), color = "red")
 
-    ax[0, 0].set_xlabel("Vitesse de rotation (tr/min)")
-    ax[0, 0].set_ylabel("Poussée (N)")
-    ax[0, 1].set_xlabel("Puissance mécanique fournie (W)")
-    ax[0, 1].set_ylabel("Poussée (N)")
-    ax[1, 0].set_xlabel("Vitesse de rotation (tour/min)")
-    ax[1, 0].set_ylabel("Puissance mécanique fournie (W)")
-    ax[1, 1].set_xlabel("Rayon (m)")
-    ax[1, 1].set_ylabel("Angle d'incidence (°)")
-    ax[0, 2].set_xlabel("Rayon (m)")
-    ax[0, 2].set_ylabel("Vitesse induite verticale (m/s)")
-    ax[1, 2].set_xlabel("Rayon (m)")
-    ax[1, 2].set_ylabel("Vitesse induite tangentielle (m/s)")
+        
+        for i in range(0, 7) :
+            ax[1, 1].plot(helice.r1, 180/np.pi*incidence(helice, ca.vertcat(helice.calage, helice.corde, sols[int((N-1)/7)*i], O[int((N-1)/7)*i]/1000)), label=f"{O[int((N-1)/7)*i]*60/(2*np.pi):.0f} tr/min")
+            ax[0, 2].plot(helice.r1, sols[int((N-1)/7)*i][:helice.N], label=f"{O[int((N-1)/7)*i]*60/(2*np.pi):.0f} tr/min")
+            ax[1, 2].plot(helice.r1, sols[int((N-1)/7)*i][helice.N:2*helice.N], label=f"{O[int((N-1)/7)*i]*60/(2*np.pi):.0f} tr/min")
 
-    plt.legend()
-    plt.show()
+        ax[0, 0].set_title("Poussée en fonction de la vitesse de rotation")
+        ax[0, 1].set_title("Poussée en fonction de la puissance mécanique")
+        ax[1, 0].set_title("Puissance mécanique en fonction de la vitesse de rotation")
+        ax[1, 1].set_title("Incidence en fonction du rayon")
+        ax[0, 2].set_title("Vitesse induite verticale en fonction du rayon")
+        ax[1, 2].set_title("Vitesse induite tangentielle en fonction du rayon")
+        ax[2, 0].set_title("Coefficient de portance en fonction de la vitesse de rotation")
+        ax[1, 0].set_title("Coefficient de trainé en fonction de la vitesse de rotation")
+
+        ax[0, 0].set_xlabel("Vitesse de rotation (tr/min)")
+        ax[0, 0].set_ylabel("Poussée (N)")
+        ax[0, 1].set_xlabel("Puissance mécanique fournie (W)")
+        ax[0, 1].set_ylabel("Poussée (N)")
+        ax[1, 0].set_xlabel("Vitesse de rotation (tour/min)")
+        ax[1, 0].set_ylabel("Puissance mécanique fournie (W)")
+        ax[1, 1].set_xlabel("Rayon (m)")
+        ax[1, 1].set_ylabel("Angle d'incidence (°)")
+        ax[0, 2].set_xlabel("Rayon (m)")
+        ax[0, 2].set_ylabel("Vitesse induite verticale (m/s)")
+        ax[1, 2].set_xlabel("Rayon (m)")
+        ax[1, 2].set_ylabel("Vitesse induite tangentielle (m/s)")
+        ax[2, 0].set_xlabel("Vitesse de rotation (tr/min)")
+        ax[2, 0].set_ylabel("Coefficient de portance")
+        ax[2, 1].set_xlabel("Vitesse de rotation (tr/min)")
+        ax[2, 1].set_ylabel("Coefficient de trainé")
+
+        if expé :
+            df = pd.read_csv(f"Expériences/{helice.nom}.csv")
+            df = df[df["Motor Optical Speed (RPM)"] > 1000]
+            index_max = df["Motor Optical Speed (RPM)"].idxmax()
+            db = df.loc[:index_max]                     # Pour ne pas avoir la redescente
+            ax[0, 0].scatter(db["Motor Optical Speed (RPM)"], -db["Thrust (N)"], color = "blue", s=1)
+            ax[0, 1].scatter(-db["Torque (N·m)"]*db["Motor Optical Speed (RPM)"]*(2*np.pi)/60, -db["Thrust (N)"], color = "blue", s=1)
+            ax[1, 0].scatter(db["Motor Optical Speed (RPM)"], -db["Torque (N·m)"]*db["Motor Optical Speed (RPM)"]*(2*np.pi)/60, color = "blue", s=1)
+            ax[2, 0].scatter(db["Motor Optical Speed (RPM)"], -db["Thrust (N)"]/(rho*(db["Motor Optical Speed (RPM)"]*(2*np.pi/60))**2*(2*R)**4), color = "blue", s=1)
+            ax[2, 1].scatter(db["Motor Optical Speed (RPM)"], -db["Torque (N·m)"]*db["Motor Optical Speed (RPM)"]*2*np.pi/(60*rho*(db["Motor Optical Speed (RPM)"]*(2*np.pi/60))**3*(2*R)**5), color = "blue", s=1)
+
+        plt.legend()
+        plt.show()
 
     return F
 
 if __name__ == "__main__" :
 
-    gabizarre = Helice_squelette(R, r0, 3, 27, "clarky","gabizarre")
-    h_V1 = Helice(np.pi/180*np.array( [39.3307, 37.5131, 35.8262, 34.4722, 33.3607, 29.9771, 23.774, 18.9439, 19.3118, 19.2442, 19.3875, 19.9394, 20.8381, 21.6244, 21.3809, 20.5254, 19.5879, 18.6397, 17.6985, 16.7753, 15.8647, 15.2519, 14.7514, 14.0816, 11.0324, 9.34691, 9.29033]), np.array([1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.43596, 1.34892, 1.27696, 1.5, 1.5, 0.79401])/100, gabizarre)
-    force_puissance_théo(h_V1)
+    F_pratique = []
+    O_pratique = []
+
+    gabizarre_s = Helice_squelette(R, r0, 3, 27, "clarky")
+    gabriel_s = Helice_squelette(R, r0, 3, 20, "clarky")
+    ag11_4pales_s = Helice_squelette(R, r0, 4, 27, "ag11")
+    clarky_VF_s = Helice_squelette(R, r0, 3, 20, "clarky")
+
+    sol = hélice_optim(clarky_VF_s, courbes = True)
+
+    gabizarre = Helice(np.pi/180*np.array([39.3307, 37.5131, 35.8262, 34.4722, 33.3607, 29.9771, 23.774, 18.9439, 19.3118, 19.2442, 19.3875, 19.9394, 20.8381, 21.6244, 21.3809, 20.5254, 19.5879, 18.6397, 17.6985, 16.7753, 15.8647, 15.2519, 14.7514, 14.0816, 11.0324, 9.34691, 9.29033]), np.array([1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.43596, 1.34892, 1.27696, 1.5, 1.5, 0.79401])/100, gabizarre_s, "gabizarre")
+    ag11_4pales = Helice(np.pi/180*np.array([22.4222, 23.4483, 24.3515, 25.0287, 25.3581, 25.2755, 24.7976, 23.9949, 22.9605, 21.7869, 20.5544, 19.329, 18.1623, 17.0904, 16.1475, 15.3572, 14.7017, 14.1359, 13.6185, 13.1305, 12.6725, 12.2543, 11.8845, 11.5571, 11.2345, 10.8447, 10.3456]), np.array([0.600001, 0.973888, 1.30482, 1.55599, 1.71469, 1.7874, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.78829,1.75177, 1.68558, 1.58955, 1.46571, 1.31696, 1.14676, 0.960048, 0.763806, 0.565364])/100, ag11_4pales_s, "ag11_4pales")
+    gabriel = Helice(np.pi/180*np.array([40.2631, 35.3814, 32.2878, 30.1048, 28.4588, 27.1606, 26.1028, 25.2193, 24.467, 23.8163, 23.2462, 22.511, 21.6298, 20.8552, 20.1694, 19.558, 19.0096, 18.5152, 18.0671, 17.6591]), np.array([0.015, 0.015, 0.015, 0.015, 0.015, 0.015, 0.015, 0.015, 0.015, 0.015, 0.015, 0.0144592, 0.0134184, 0.0124968, 0.0116756, 0.0109397, 0.0102769, 0.00967708, 0.00913186, 0.0086343]), gabriel_s, "gabriel")
+    performances_théo_expé(ag11_4pales, expé = True, courbes = True)
 
 
 
