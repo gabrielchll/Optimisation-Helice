@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import casadi as ca
 import neuralfoil as nf
 import aerosandbox as asb
+from scipy.ndimage import gaussian_filter1d
 
 incidence = np.linspace(-5, 24, 50)
 reynolds = np.linspace(300, 100000, 50)
@@ -16,7 +17,10 @@ class Profil :
 
         aero = nf.get_aero_from_airfoil(airfoil=asb.Airfoil(profil), alpha=incidence_grid.flatten(), Re=Re_grid.flatten(), model_size="xxxlarge")
         CT = aero["CD"].reshape(incidence_grid.shape)
-        CP = aero["CL"].reshape(incidence_grid.shape)      
+        CP = aero["CL"].reshape(incidence_grid.shape)
+        sigma_val = 3
+        CT = gaussian_filter1d(CT, sigma=sigma_val, axis=0)
+        CP = gaussian_filter1d(CP, sigma=sigma_val, axis=0)    
         CT_int = ca.interpolant("CT_int", "bspline", [incidence.tolist(), reynolds.tolist()], CT.T.ravel(order="F").tolist())
         CP_int = ca.interpolant("CP_int", "bspline", [incidence.tolist(), reynolds.tolist()], CP.T.ravel(order="F").tolist())
 
@@ -58,8 +62,8 @@ if __name__ == "__main__" :
 
     fig, ax = plt.subplots(1, 2)
 
-    courbe_Cp(ag11, ax[0], 10)
-    courbe_Cp(clarky, ax[1], 10)
+    courbe_Cp(sd7043, ax[0], 20)
+    courbe_Cp(clarky, ax[1], 20)
     plt.show()
 
 
