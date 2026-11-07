@@ -60,7 +60,7 @@ def force_vert_diff(helice, x) :          # Renvoie la liste des forces vertical
     return 1/2*rho*helice.N_pale*ca.sqrt(v_t**2 + x[2*helice.N:3*helice.N]**2)*(helice.Cp((x[:helice.N] - a)*180/np.pi, Re) * v_t - helice.Ct((x[:helice.N] - a)*180/np.pi, Re) * x[2*helice.N:3*helice.N]) * x[helice.N:2*helice.N] * helice.dr
 
 def force_tang_diff(helice, x) :  # Renvoie la liste des puissances nécessaire pour faire tourner chaque section de la pale
-    Re = Reynolds(helice, x)                 # Est pris en compte si on fait varier Ct avec Re
+    Re = Reynolds(helice, x)
     a = alpha(helice, x)
     v_t = helice.r1*x[-1]*1000-x[3*helice.N:-1]
     return 1/2*rho*ca.sqrt(v_t**2 + x[2*helice.N:3*helice.N]**2) * (helice.Cp((x[:helice.N] - a)*180/np.pi, Re) * x[2*helice.N:3*helice.N]  + helice.Ct((x[:helice.N] - a)*180/np.pi, Re) * v_t) * x[helice.N:2*helice.N] * helice.dr * helice.N_pale
@@ -112,32 +112,42 @@ def hélice_optim(helice, courbes = True) :        # Résoud le problème défin
 
         fig, ax = plt.subplots(2, 3)
 
+        ax1 = ax[1, 1].twinx()
+        ax2 = ax[1, 2].twinx()
+        ax3 = ax[0, 2].twinx()
+
         ax[0, 0].plot(helice.r1, X[:helice.N]*180/np.pi)        # Trace l'angle de calage en fonction
         ax[0, 1].plot(helice.r1, X[helice.N:2*helice.N]*100)        # Trace la corde en fonction de r
-        ax[1, 0].plot(helice.r1, X[2*helice.N:3*helice.N])         # Trace la vitesse induite en fonction de r
+        ax[1, 0].plot(helice.r1, force_tang_diff(helice, X))         # Trace la vitesse induite en fonction de r
         ax[1, 1].plot(helice.r1, force_vert_diff(helice, X))      # Trace la force verticale en fonction de r 
+        ax1.plot(helice.r1, facteur_perte_Prandt(helice, X), color = "red")
         ax[0, 2].plot(helice.r1, X[3*helice.N:-1])
-        ax[1,2].plot(helice.r1, (X[:helice.N]-alpha(helice, X))*180/np.pi)
+        ax3.plot(helice.r1, X[2*helice.N:3*helice.N], color = "red")
+        ax[1, 2].plot(helice.r1, (X[:helice.N]-alpha(helice, X))*180/np.pi)
+        ax2.plot(helice.r1, Reynolds(helice, X), color = "red")
 
         ax[0, 0].set_title("Angle de calage en fonction du rayon de la section")
         ax[0, 1].set_title("Corde en fonction du rayon de la section")
-        ax[1, 0].set_title("Vitesse induite verticale en fonction du rayon de la section")
-        ax[1, 1].set_title("Répartition de la force verticale sur une pale")
-        ax[0, 2].set_title("Vitesse induite tangentielle en fonction du rayon de la section")
-        ax[1, 2].set_title("Reynolds de la section en fonction du rayon")
+        ax[1, 0].set_title("Répartition de la force tangentielle sur une pale")
+        ax[1, 1].set_title("Répartition de la force verticale et facteur de Prandt sur une pale")
+        ax[0, 2].set_title("Vitesses induites sen fonction du rayon de la section")
+        ax[1, 2].set_title("Angle d'incidence et reynolds de la section en fonction du rayon")
 
         ax[0, 0].set_ylabel("Angle de calage (en °)")
         ax[0, 0].set_xlabel("Rayon (en m)")
         ax[0, 1].set_ylabel("Corde (en cm)")
         ax[0, 1].set_xlabel("Rayon (en m)")
-        ax[1, 0].set_ylabel("Vitesse induite verticale (en m/s)")
+        ax[1, 0].set_ylabel("Force tangentielle (en N)")
         ax[1, 0].set_xlabel("Rayon (en m)")
-        ax[1, 1].set_ylabel("Force verticale (en N/m)")
+        ax[1, 1].set_ylabel("Force verticale (en N)")
         ax[1, 1].set_xlabel("Rayon (en m)")
         ax[0, 2].set_ylabel("Vitesse induite tangentielle (en m/s)")
         ax[0, 2].set_xlabel("Rayon (en m)")
-        ax[1, 2].set_ylabel("Reynolds")
+        ax[1, 2].set_ylabel("Incidence (en °)")
         ax[1, 2].set_xlabel("Rayon (en m)")
+        ax1.set_ylabel("Facteur de Prandt")
+        ax2.set_ylabel("Reynolds")
+        ax3.set_ylabel("Vitesse induite verticale (en m/s)")
 
         fig.suptitle(f"Caractéristiques de l'hélice")
 
@@ -285,11 +295,15 @@ if __name__ == "__main__" :
     ag11_v0_3pales = Helice(np.pi/180*np.array([22.4222, 23.4483, 24.3515, 25.0287, 25.3581, 25.2755, 24.7976, 23.9949, 22.9605, 21.7869, 20.5544, 19.329, 18.1623, 17.0904, 16.1475, 15.3572, 14.7017, 14.1359, 13.6185, 13.1305, 12.6725, 12.2543, 11.8845, 11.5571, 11.2345, 10.8447, 10.3456]), np.array([0.600001, 0.973888, 1.30482, 1.55599, 1.71469, 1.7874, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.78829,1.75177, 1.68558, 1.58955, 1.46571, 1.31696, 1.14676, 0.960048, 0.763806, 0.565364])/100, ag11_3pales_s, "ag11_v0_3pales ")
     ag11_v0_4pales  = Helice(np.pi/180*np.array([22.4222, 23.4483, 24.3515, 25.0287, 25.3581, 25.2755, 24.7976, 23.9949, 22.9605, 21.7869, 20.5544, 19.329, 18.1623, 17.0904, 16.1475, 15.3572, 14.7017, 14.1359, 13.6185, 13.1305, 12.6725, 12.2543, 11.8845, 11.5571, 11.2345, 10.8447, 10.3456]), np.array([0.600001, 0.973888, 1.30482, 1.55599, 1.71469, 1.7874, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.8, 1.78829,1.75177, 1.68558, 1.58955, 1.46571, 1.31696, 1.14676, 0.960048, 0.763806, 0.565364])/100, ag11_4pales_s, "ag11_v0_4pales ")
 
+    ag11_v1_3pales = Helice(np.pi/180*np.array([22.4213, 24.0429, 25.4664, 26.5052, 26.8971, 26.7345, 26.1171, 25.1581, 23.9728, 22.6665, 21.3256, 20.0174, 18.7901,17.6768, 16.7062, 15.8898, 15.2041, 14.6047, 14.0543, 13.5368, 13.0526, 12.6098, 12.2157, 11.8668, 11.5333, 11.1514, 10.6775]), 1/100*np.array([0.600001, 0.977276, 1.31925, 1.59725, 1.81158, 1.94329, 1.99705, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1.997, 1.97352, 1.92155, 1.8389, 1.72651, 1.58662, 1.42178, 1.23486, 1.03006, 0.814049, 0.594508]), ag11_3pales_s, "ag11_v1_3pales")
+
+    ag11_v2_3pales = Helice(np.pi/180*np.array([22.4217, 22.9833, 23.4516, 23.7545, 23.7975, 23.5462, 23.0236, 22.2904, 21.4013, 20.4056, 19.3512, 18.2807, 17.2336,16.2426, 15.3416, 14.5763, 13.9584, 13.4466, 12.9877, 12.5517, 12.1363, 11.7545, 11.4178, 11.1182, 10.8084, 10.4071, 9.87098]), 1/100*np.array([0.600001, 0.91543, 1.18611, 1.37428, 1.47276, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.49067, 1.45613, 1.39076, 1.29481, 1.17147, 1.02559, 0.863641, 0.693396, 0.522287]), ag11_3pales_s, "ag11_v2_3pales")
+
     # ------------------------------- SD7043 ---------------------------------
 
     sd7043_v0_4pales = Helice(np.pi/180*np.array([23.3896, 24.0764, 24.7225, 25.309, 25.8278, 26.25, 26.5186, 26.5546, 26.301, 25.7552, 24.9694, 24.028, 23.0204, 22.0232, 21.0894, 20.2424, 19.4862, 18.8146, 18.2202, 17.6993, 17.2532, 16.8789, 16.5416, 16.1251, 15.3892, 14.0493, 12.1442]), 1/100*np.array([0.800001, 1.04492, 1.25659, 1.40838, 1.48614, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.49398, 1.47103, 1.42995, 1.37419, 1.30828, 1.23598, 1.15956, 1.08011, 0.997965, 0.912575, 0.820869, 0.715675, 0.59379]), sd7043_4pales_s, "sd7043_v0_4pales")
 
-    hélice_optim(clarky_4pales_s)
+    hélice_optim(sd7043_4pales_s)
 
 
 
