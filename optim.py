@@ -15,7 +15,7 @@ omeg_min = 500
 incid_max_sd7043 = np.array([6.5,6.7,7.2,7.3,7.4,7.54,7.72,8.25,8.7,8.93,9.22,9.48,9.71,9.82,9.95, 10.21,10.42,10.60,10.81,11.05,11.15,11.28])  # Incidences de décrochaque pour divers reynolds
 incid_max_clarky = np.array([5.5, 5.5, 5.5, 5.7, 5.9, 5.9, 6, 6, 6.6, 7.5, 8.1, 8.4, 8.7, 9, 9.5, 10.2, 10.8, 11.3, 11.7, 11.7, 11.7, 12])
 
-class Helice_squelette :        # Il s'agit du squelette pour l'optimisation regroupant toute les données utiles
+class Helice_squelette :        # Il s'agit du squelette pour l'optimisation regroupant toute les données utiles notamment le découpage en sections
 
     def __init__(self, R, r0, N_pale, N, profil, incid_max = np.full(22, 6)) :
         self.profil = Profil(profil, incid_max)
@@ -291,7 +291,7 @@ def polynome(c, x) :        # Pour les régressions polynomiales, adapté à pol
 
 if __name__ == "__main__" :
 
-    # -------- Une base de donnée aurait été bien plus propre mais je n'ai pas eu le temps de la mettre en place -------
+    # ------- Une base de données aurait été bien plus propre mais je n'ai pas eu le temps de la mettre en place -------
     # --------------------- Les squelettes des hélices (dimensions générales + découpage en section) -------------------
 
     gabriel_3pales_s = Helice_squelette(R, r0, 3, 20, "clarky", incid_max_clarky)     # Premier découpage en 20 sections mais pas idéal pour la CAO car nombres irrationnels
